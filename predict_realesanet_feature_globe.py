@@ -103,6 +103,7 @@ def main_test(args, num_sample=100, suffix='',
 
     # print the model
     resume = os.path.join(logdir, args.checkpoint)
+    print(resume)
     if os.path.isfile(resume):
         print("=> loading checkpoint '{}'".format(resume))
         checkpoint = torch.load(resume)
@@ -220,21 +221,21 @@ def getcitynamelist(args):
 
 if __name__=="__main__":
     # predict on the whole images
-    city = 'globe'
+    city = 'china'
     args = get_args(city=city)
     args.checkpoint = 'checkpoint20.tar'
  
     isonamelist = ['chn_large', 'usa_large', 'europe_large',  'chn_metro', 'usa_metro', 'europe_metro']
 
-    for isoname in isonamelist:
-        args.wholeimgpath = r'.\data\urban\input_data\s2'+isoname
-        # flist = getcitynamelist(args)
-        main_test(args, num_sample=0, suffix='city'+isoname,
-                iswhole=True, batch_size=16, num_workers=8, gridvalid='isv')
+    # for isoname in isonamelist:
+    #     args.wholeimgpath = r'.\data\urban\input_data\s2'+isoname
+    #     # flist = getcitynamelist(args)
+    #     main_test(args, num_sample=0, suffix='city'+isoname,
+    #             iswhole=True, batch_size=16, num_workers=8, gridvalid='isv')
 
     # predict Jilin-1
-    # args.wholeimgpath = r'.\data\jilin\dsm'
-    # args.cityname = ['Changchun', 'Urumqi', 'mei']
-    # main_test(args, num_sample=0, suffix='city',
-    #           iswhole=True, batch_size=16, num_workers=8,
-    #           respath = args.wholeimgpath, gridvalid=None)
+    args.wholeimgpath = r'E:\Project\Building Height\data\s2chn_metro\s2chn_metro'
+    args.cityname = ['Anqing']
+    main_test(args, num_sample=0, suffix='city',
+              iswhole=True, batch_size=16, num_workers=8,
+              respath = args.wholeimgpath, gridvalid=None)

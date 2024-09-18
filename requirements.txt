@@ -13,3 +13,5 @@ tqdm
 shapely
 TensorboardX
 segmentation_models_pytorch
+earthengine-api
+geemap

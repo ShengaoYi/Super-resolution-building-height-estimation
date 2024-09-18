@@ -9,7 +9,7 @@ import torch.nn as nn
 import segmentation_models_pytorch as smp
 from SR.edsr import EDSR, EDSR_fea, EDSR_feaHR
 from segmentation_models_pytorch.encoders import get_encoder
-from segmentation_models_pytorch.decoders.unet import UnetDecoder# , UnetDecoder_noise
+from segmentation_models_pytorch.decoders.unet.decoder import UnetDecoder# , UnetDecoder_noise
 from SR.HRfuse import HRfuse, HRfuse_x2, HRfeature, HRfuse_residual, Refine_residual, GeoNet, HRupsample
 from torch.distributions.uniform import Uniform
 
@@ -410,104 +410,104 @@ class SRRegress_Cls_nosuper(torch.nn.Module):
 
 
 # unsupervised version
-'''
-class SRRegress_Cls_feature_unsup(torch.nn.Module):
-    def __init__(self, encoder_name="resnet50", encoder_weights="imagenet", encoder_depth=5,
-                 in_channels=7, classes=1, super_in=4, super_mid=64, upscale=4,
-                 isaggre=False, chans_build=2, uniform_range=0.3, isunsup=False):
-        super().__init__()
-        # self.super_in = super_in
-        # Super-Resolution branches
-        # self.super_res = EDSR_feaHR(n_colors=super_in, n_out=3, n_feats=super_mid)
-        # Encoder-Decoder
-        self.encoder = get_encoder(encoder_name, in_channels=in_channels,
-                                   depth=encoder_depth, weights=encoder_weights,)
-        dec_in = (256, 128, 64, 32, 16)
-        self.decoder1 = UnetDecoder(
-            encoder_channels=self.encoder.out_channels,
-            decoder_channels=dec_in,
-            n_blocks=encoder_depth,
-            use_batchnorm=True,
-            center=True if encoder_name.startswith("vgg") else False,
-            attention_type=None)
-        self.decoder2 = UnetDecoder(
-            encoder_channels=self.encoder.out_channels,
-            decoder_channels=dec_in,
-            n_blocks=encoder_depth,
-            use_batchnorm=True,
-            center=True if encoder_name.startswith("vgg") else False,
-            attention_type=None)
-        # Fuse the SR HR features and the result of decoder, then upsampler
-        self.reg = HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
-                           out_chans=1, upscale=upscale)
-        self.seg = HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
-                           out_chans=chans_build, upscale=upscale)
-        self.hrfeat = HRfeature(in_chans=super_in, mid_chans=super_mid, out_chans=super_mid)
-        # Aggregate
-        self.isaggre = isaggre
-        if self.isaggre:
-            self.aggre_height = nn.Conv2d(super_mid, 1, 3,1,1) # kernel is set to 1
-
-        # feature pertubation: noise, set to 3
-        #if isunsup:
-        num_aux = 3
-        self.decoder_aux = nn.ModuleList([UnetDecoder_noise(
-            encoder_channels=self.encoder.out_channels,
-            decoder_channels=dec_in,
-            n_blocks=encoder_depth,
-            use_batchnorm=True,
-            center=True if encoder_name.startswith("vgg") else False,
-            attention_type=None,
-            uniform_range=uniform_range) for _ in range(num_aux)])
-        self.reg_aux = nn.ModuleList([HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
-                           out_chans=1, upscale=upscale) for _ in range(num_aux)])
-
-    def forward(self, x, super_fea):
-        '''
-        :param x: optical images, sentinel-2 and sar images, sentinel-1
-        :param super_fea: directly generated from existing one, and may has Internal Covariate Shift
-        :return:
-        '''
-        encode_fea = self.encoder(x)
-        super_fea = self.hrfeat(super_fea)
-
-        height_fea = self.decoder1(*encode_fea)
-        if self.isaggre:
-            height_aggre = self.aggre_height(height_fea)
-            height_aggre = height_aggre.squeeze()
-
-        height = self.reg(height_fea, super_fea)
-        height = height.squeeze()
-
-        build = self.decoder2(*encode_fea)
-        build = self.seg(build, super_fea)
-
-        if self.isaggre:
-            return height, build, height_aggre
-
-        return height, build
-
-    # unsupervised learning
-    def forward_unsup(self, x, super_fea):
-        '''
-        :param x: optical images, sentinel-2 and sar images, sentinel-1
-        :param super_fea: directly generated from existing one, and may has Internal Covariate Shift
-        :return:
-        '''
-        encode_fea = self.encoder(x)
-        super_fea = self.hrfeat(super_fea)
-
-        height_fea = self.decoder1(*encode_fea)
-        height = self.reg(height_fea, super_fea)
-        height = height.squeeze()
-
-        # noise
-        height_noise = [decoder_aux(*encode_fea) for decoder_aux in self.decoder_aux]
-        height_noise = [reg_aux(tmp, super_fea) for reg_aux, tmp in zip(self.reg_aux, height_noise)]
-        height_noise = [i.squeeze() for i in height_noise]
-
-        return height, height_noise
-'''
+# '''
+# class SRRegress_Cls_feature_unsup(torch.nn.Module):
+#     def __init__(self, encoder_name="resnet50", encoder_weights="imagenet", encoder_depth=5,
+#                  in_channels=7, classes=1, super_in=4, super_mid=64, upscale=4,
+#                  isaggre=False, chans_build=2, uniform_range=0.3, isunsup=False):
+#         super().__init__()
+#         # self.super_in = super_in
+#         # Super-Resolution branches
+#         # self.super_res = EDSR_feaHR(n_colors=super_in, n_out=3, n_feats=super_mid)
+#         # Encoder-Decoder
+#         self.encoder = get_encoder(encoder_name, in_channels=in_channels,
+#                                    depth=encoder_depth, weights=encoder_weights,)
+#         dec_in = (256, 128, 64, 32, 16)
+#         self.decoder1 = UnetDecoder(
+#             encoder_channels=self.encoder.out_channels,
+#             decoder_channels=dec_in,
+#             n_blocks=encoder_depth,
+#             use_batchnorm=True,
+#             center=True if encoder_name.startswith("vgg") else False,
+#             attention_type=None)
+#         self.decoder2 = UnetDecoder(
+#             encoder_channels=self.encoder.out_channels,
+#             decoder_channels=dec_in,
+#             n_blocks=encoder_depth,
+#             use_batchnorm=True,
+#             center=True if encoder_name.startswith("vgg") else False,
+#             attention_type=None)
+#         # Fuse the SR HR features and the result of decoder, then upsampler
+#         self.reg = HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
+#                            out_chans=1, upscale=upscale)
+#         self.seg = HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
+#                            out_chans=chans_build, upscale=upscale)
+#         self.hrfeat = HRfeature(in_chans=super_in, mid_chans=super_mid, out_chans=super_mid)
+#         # Aggregate
+#         self.isaggre = isaggre
+#         if self.isaggre:
+#             self.aggre_height = nn.Conv2d(super_mid, 1, 3,1,1) # kernel is set to 1
+#
+#         # feature pertubation: noise, set to 3
+#         #if isunsup:
+#         num_aux = 3
+#         self.decoder_aux = nn.ModuleList([UnetDecoder_noise(
+#             encoder_channels=self.encoder.out_channels,
+#             decoder_channels=dec_in,
+#             n_blocks=encoder_depth,
+#             use_batchnorm=True,
+#             center=True if encoder_name.startswith("vgg") else False,
+#             attention_type=None,
+#             uniform_range=uniform_range) for _ in range(num_aux)])
+#         self.reg_aux = nn.ModuleList([HRfuse_residual(hr_chans=super_mid, lr_chans=dec_in[-1], mid_chans=dec_in[-1],
+#                            out_chans=1, upscale=upscale) for _ in range(num_aux)])
+#
+#     def forward(self, x, super_fea):
+#         '''
+#         :param x: optical images, sentinel-2 and sar images, sentinel-1
+#         :param super_fea: directly generated from existing one, and may has Internal Covariate Shift
+#         :return:
+#         '''
+#         encode_fea = self.encoder(x)
+#         super_fea = self.hrfeat(super_fea)
+#
+#         height_fea = self.decoder1(*encode_fea)
+#         if self.isaggre:
+#             height_aggre = self.aggre_height(height_fea)
+#             height_aggre = height_aggre.squeeze()
+#
+#         height = self.reg(height_fea, super_fea)
+#         height = height.squeeze()
+#
+#         build = self.decoder2(*encode_fea)
+#         build = self.seg(build, super_fea)
+#
+#         if self.isaggre:
+#             return height, build, height_aggre
+#
+#         return height, build
+#
+#     # unsupervised learning
+#     def forward_unsup(self, x, super_fea):
+#         '''
+#         :param x: optical images, sentinel-2 and sar images, sentinel-1
+#         :param super_fea: directly generated from existing one, and may has Internal Covariate Shift
+#         :return:
+#         '''
+#         encode_fea = self.encoder(x)
+#         super_fea = self.hrfeat(super_fea)
+#
+#         height_fea = self.decoder1(*encode_fea)
+#         height = self.reg(height_fea, super_fea)
+#         height = height.squeeze()
+#
+#         # noise
+#         height_noise = [decoder_aux(*encode_fea) for decoder_aux in self.decoder_aux]
+#         height_noise = [reg_aux(tmp, super_fea) for reg_aux, tmp in zip(self.reg_aux, height_noise)]
+#         height_noise = [i.squeeze() for i in height_noise]
+#
+#         return height, height_noise
+# '''
 
 # 2023.11.15: add geo prior
 class SRRegress_Cls_feature_geo(torch.nn.Module):

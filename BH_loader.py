@@ -279,27 +279,158 @@ class myImageFloder_S12_HR_china(data.Dataset):
 
 
 # 2023.11.7: load globe image
+# class myImageFloder_S12_globe(data.Dataset):
+#     def __init__(self, datalist, rootname, datastats='datastats',
+#                  normmethod='meanstd', datarange=(0, 1),
+#                  aug=False, num_sample=0,
+#                  s1dir='s1', s2dir='s2', heightdir='bh', preweight=None,
+#                  isaggre=False, ishir=False, hir=(0, 3, 12, 21, 30, 60, 90, 256),
+#                  nchans=6, weightmethod='sqrt'):
+#         # hir = (0, 1, 4, 7, 10, 20, 30, 255)
+#         self.nchans = nchans
+#         self.datalist = pd.read_csv(datalist, sep=',', header=None)
+#         # 加载一个样本，提前初始化宽度、高度等信息
+#         basename = self.datalist.iloc[0, 0]
+#         self.img_path = os.path.join(rootname, s2dir, basename)
+#         # get indices
+#         self.width, self.height, self.geotrans, self.proj = get_tif_meta(self.img_path)
+#         count = len(self.datalist.columns)
+#         if count==1: # add columns
+#             self.datalist[s1dir] = s1dir
+#             self.datalist[s2dir] = s2dir
+#             self.datalist[heightdir] = heightdir
+#         if num_sample>0: # sample
+#             self.datalist = self.datalist[:num_sample] # self.datalist.sample(n=num_sample, random_state=0)
+#         self.aug = aug # augmentation for images
+#         self.rootname = rootname
+#         self.norms1 = np.loadtxt(os.path.join(datastats, f'{s1dir}_{normmethod}.txt'))
+#         self.norms2 = np.loadtxt(os.path.join(datastats, f'{s2dir}_{normmethod}.txt'))
+#         self.norms2 = self.norms2[:, :self.nchans]
+#         if normmethod=='minmax':
+#             self.norms1[1] -= self.norms1[0]  # max-min
+#             self.norms2[1] -= self.norms2[0] # max-min
+#         self.datarange = datarange
+#         # self.isheight = isheight
+#         num_hier = len(hir)-1
+#         self.heightweight = np.ones((num_hier,))
+#         if preweight is not None:
+#             stats = np.loadtxt(preweight)
+#             self.heightweight = hierweight(stats, hir)
+#             if weightmethod=='simple':
+#                 self.heightweight = hierweight_simple(stats, hir)
+#             elif weightmethod=='equal':
+#                 self.heightweight = hierweight_equal(stats, hir)
+#             else:
+#                 pass
+#             # self.preweight = prepare_weights(stats, reweight='sqrt_inv', max_target=max_target,
+#             #                             lds=True, lds_kernel='gaussian', lds_ks=5, lds_sigma=2)
+#         # self.max_target = max_target
+#         # self.normheight = normheight
+#         self.isaggre = isaggre
+#         self.ishir = ishir
+#         if ishir:
+#             self.buildhir = np.zeros((256,), dtype='uint8')
+#             for i in range(num_hier):
+#                 self.buildhir[hir[i]:hir[i+1]] = i
+#
+#     def __getitem__(self, index):
+#         basename = self.datalist.iloc[index, 0]
+#         s1dir = self.datalist.iloc[index, 1]
+#         s2dir = self.datalist.iloc[index, 2]
+#         bhdir = self.datalist.iloc[index, 3]
+#         img_path = os.path.join(self.rootname, s2dir, basename)
+#         # s2 & s1 images
+#         s2 = tif.imread(os.path.join(self.rootname, s2dir, basename))[:, :, :self.nchans]
+#         s1 = tif.imread(os.path.join(self.rootname, s1dir, basename))
+#         img = np.concatenate((s2, s1), axis=-1)
+#         # height
+#         height_path = os.path.join(self.rootname, bhdir, basename)
+#         if os.path.exists(height_path):
+#             height = cv2.imread(height_path, cv2.IMREAD_UNCHANGED)
+#         else:
+#             height = np.ones((256, 256), dtype=np.uint8) # if do not exist
+#         # build footprint
+#         # build_path = os.path.join(self.rootname, 'cbra', basename)
+#         # build = cv2.imread(build_path, cv2.IMREAD_UNCHANGED)
+#         # build = (build==255).astype('uint8') # convert to 0,1
+#         # cat
+#         # lab = np.stack((height, build), axis=2)
+#         h, w, bs2 = s2.shape
+#         img = cv2.resize(img, dsize=(4*h, 4*w), interpolation=cv2.INTER_NEAREST)
+#         # Augmentation
+#         if self.aug:
+#             transformed = image_transform(image=img, mask=height)
+#             img = transformed["image"]
+#             height = transformed["mask"]
+#         # Normalization
+#         img = torch.from_numpy(img.astype('float32')).float()  # .permute(2,0,1)
+#         img[:, :, :bs2] = (img[:, :, :bs2] - self.norms2[0]) / self.norms2[1] # sentinel-2
+#         img[:, :, bs2:] = (img[:, :, bs2:] - self.norms1[0]) / self.norms1[1] # sentinel-1
+#         img = img.permute(2, 0, 1).unsqueeze(0)  # 1 C H W
+#         img = torch.nn.functional.interpolate(img, scale_factor=0.25, mode="nearest")
+#         img = img.squeeze(0)
+#         if isinstance(self.datarange, tuple):
+#             img[img < self.datarange[0]] = self.datarange[0]
+#             img[img > self.datarange[1]] = self.datarange[1]
+#         # Multi-scale height maps
+#         # height[(height<3) & (height>0)] = 3 # set the minimum to 3 floors
+#         # height[height>20] = 20 # set the minimum to 20 floors
+#         if self.ishir:
+#             build = self.buildhir[height]
+#             heightweight = self.heightweight[build]
+#         else:
+#             build = (height > 0)
+#             heightweight = np.ones_like(build)
+#
+#         build = torch.from_numpy(build).long()
+#         height = torch.from_numpy(height).float()  # [0, C-1], 0,1,2 index
+#         heightweight = torch.from_numpy(heightweight).float()
+#
+#         if self.isaggre:
+#             h, w = height.shape
+#             height_aggre = aggregate_torch(height.reshape((1, 1, h, w)), scale=0.25)
+#             height = [height, height_aggre]
+#             # weight
+#             build_aggre = self.buildhir[height_aggre.long().numpy()]
+#             heightweight_aggre = self.heightweight[build_aggre]
+#             heightweight_aggre = torch.from_numpy(heightweight_aggre).float()
+#             heightweight = [heightweight, heightweight_aggre]
+#
+#         if self.aug:
+#             return img, height, build, heightweight, img_path
+#         else:
+#             return img, height, build, img_path, img_path
+#
+#     def __len__(self):
+#         return len(self.datalist)
+
+
 class myImageFloder_S12_globe(data.Dataset):
-    def __init__(self, datalist, rootname, datastats='datastats',
+    def __init__(self, rootname, datastats='datastats',
                  normmethod='meanstd', datarange=(0, 1),
-                 aug=False, num_sample=0,
-                 s1dir='s1', s2dir='s2', heightdir='bh', preweight=None,
+                 s1dir='s1', s2dir='s2', preweight=None,
                  isaggre=False, ishir=False, hir=(0, 3, 12, 21, 30, 60, 90, 256),
                  nchans=6, weightmethod='sqrt'):
         # hir = (0, 1, 4, 7, 10, 20, 30, 255)
         self.nchans = nchans
-        self.datalist = pd.read_csv(datalist, sep=',', header=None)
-        count = len(self.datalist.columns)
-        if count==1: # add columns
-            self.datalist[s1dir] = s1dir
-            self.datalist[s2dir] = s2dir
-            self.datalist[heightdir] = heightdir
-        if num_sample>0: # sample
-            self.datalist = self.datalist[:num_sample] # self.datalist.sample(n=num_sample, random_state=0)
-        self.aug = aug # augmentation for images
         self.rootname = rootname
-        self.norms1 = np.loadtxt(os.path.join(datastats, f'{s1dir}_{normmethod}.txt'))
-        self.norms2 = np.loadtxt(os.path.join(datastats, f'{s2dir}_{normmethod}.txt'))
+        self.s1dir = s1dir
+        self.s2dir = s2dir
+
+        # 获取 s1 和 s2 的文件列表，假设文件名是匹配的
+        self.s1_files = sorted([f for f in os.listdir(os.path.join(rootname, s1dir)) if f.endswith('.tif')])
+        self.s2_files = sorted([f for f in os.listdir(os.path.join(rootname, s2dir)) if f.endswith('.tif')])
+
+        # 确保文件数相同，匹配 s1 和 s2 文件
+        assert len(self.s1_files) == len(self.s2_files), "Mismatch between s1 and s2 files"
+
+        # 获取图像的元数据 (宽度, 高度, 地理转换信息, 投影)
+        if len(self.s2_files) > 0:
+            self.img_path = os.path.join(rootname, s2dir, self.s2_files[0])
+            self.width, self.height, self.geotrans, self.proj = get_tif_meta(self.img_path)
+
+        self.norms1 = np.loadtxt(os.path.join(datastats, f's1globe_check_{normmethod}.txt'))
+        self.norms2 = np.loadtxt(os.path.join(datastats, f's2globe_check_{normmethod}.txt'))
         self.norms2 = self.norms2[:, :self.nchans]
         if normmethod=='minmax':
             self.norms1[1] -= self.norms1[0]  # max-min
@@ -329,21 +460,18 @@ class myImageFloder_S12_globe(data.Dataset):
                 self.buildhir[hir[i]:hir[i+1]] = i
 
     def __getitem__(self, index):
-        basename = self.datalist.iloc[index, 0]
-        s1dir = self.datalist.iloc[index, 1]
-        s2dir = self.datalist.iloc[index, 2]
-        bhdir = self.datalist.iloc[index, 3]
-        img_path = os.path.join(self.rootname, s2dir, basename)
-        # s2 & s1 images
-        s2 = tif.imread(os.path.join(self.rootname, s2dir, basename))[:, :, :self.nchans]
-        s1 = tif.imread(os.path.join(self.rootname, s1dir, basename))
+        # 获取文件名
+        basename = self.s1_files[index]
+
+        # 读取 s1 和 s2 图像
+        s1_image_path = os.path.join(self.rootname, self.s1dir, basename)
+        s2_image_path = os.path.join(self.rootname, self.s2dir, basename)
+
+        s1 = tif.imread(s1_image_path)
+        s2 = tif.imread(s2_image_path)[:, :, :self.nchans]  # 选择所需通道
         img = np.concatenate((s2, s1), axis=-1)
-        # height
-        height_path = os.path.join(self.rootname, bhdir, basename)
-        if os.path.exists(height_path):
-            height = cv2.imread(height_path, cv2.IMREAD_UNCHANGED)
-        else:
-            height = np.ones((256, 256), dtype=np.uint8) # if do not exist
+
+        height = np.ones((256, 256), dtype=np.uint8)
         # build footprint
         # build_path = os.path.join(self.rootname, 'cbra', basename)
         # build = cv2.imread(build_path, cv2.IMREAD_UNCHANGED)
@@ -352,11 +480,6 @@ class myImageFloder_S12_globe(data.Dataset):
         # lab = np.stack((height, build), axis=2)
         h, w, bs2 = s2.shape
         img = cv2.resize(img, dsize=(4*h, 4*w), interpolation=cv2.INTER_NEAREST)
-        # Augmentation
-        if self.aug:
-            transformed = image_transform(image=img, mask=height)
-            img = transformed["image"]
-            height = transformed["mask"]
         # Normalization
         img = torch.from_numpy(img.astype('float32')).float()  # .permute(2,0,1)
         img[:, :, :bs2] = (img[:, :, :bs2] - self.norms2[0]) / self.norms2[1] # sentinel-2
@@ -372,33 +495,95 @@ class myImageFloder_S12_globe(data.Dataset):
         # height[height>20] = 20 # set the minimum to 20 floors
         if self.ishir:
             build = self.buildhir[height]
-            heightweight = self.heightweight[build]
         else:
             build = (height > 0)
-            heightweight = np.ones_like(build)
 
         build = torch.from_numpy(build).long()
         height = torch.from_numpy(height).float()  # [0, C-1], 0,1,2 index
-        heightweight = torch.from_numpy(heightweight).float()
 
         if self.isaggre:
             h, w = height.shape
             height_aggre = aggregate_torch(height.reshape((1, 1, h, w)), scale=0.25)
             height = [height, height_aggre]
-            # weight
-            build_aggre = self.buildhir[height_aggre.long().numpy()]
-            heightweight_aggre = self.heightweight[build_aggre]
-            heightweight_aggre = torch.from_numpy(heightweight_aggre).float()
-            heightweight = [heightweight, heightweight_aggre]
 
-        if self.aug:
-            return img, height, build, heightweight
-        else:
-            return img, height, build, img_path
+        return img, height, build, s1_image_path, s2_image_path
 
     def __len__(self):
-        return len(self.datalist)
+        return len(self.s1_files)
 
+# class MyImageFolderS12Globe(data.Dataset):
+#     def __init__(self, rootname, datastats='datastats',
+#                  normmethod='meanstd', datarange=(0, 1),
+#                  aug=False, num_sample=0,
+#                  s1dir='s1', s2dir='s2',
+#                  nchans=6):
+#         # 初始化相关路径和参数
+#         self.nchans = nchans
+#         self.rootname = rootname
+#         self.s1dir = s1dir
+#         self.s2dir = s2dir
+#
+#         # 获取 s1 和 s2 的文件列表，假设文件名是匹配的
+#         self.s1_files = sorted([f for f in os.listdir(os.path.join(rootname, s1dir)) if f.endswith('.tif')])
+#         self.s2_files = sorted([f for f in os.listdir(os.path.join(rootname, s2dir)) if f.endswith('.tif')])
+#
+#         # 确保文件数相同，匹配 s1 和 s2 文件
+#         assert len(self.s1_files) == len(self.s2_files), "Mismatch between s1 and s2 files"
+#
+#         # 获取图像的元数据 (宽度, 高度, 地理转换信息, 投影)
+#         if len(self.s2_files) > 0:
+#             self.img_path = os.path.join(rootname, s2dir, self.s2_files[0])
+#             self.width, self.height, self.geotrans, self.proj = get_tif_meta(self.img_path)
+#
+#         # 如果指定了样本数限制，则进行采样
+#         if num_sample > 0:
+#             self.s1_files = self.s1_files[:num_sample]
+#             self.s2_files = self.s2_files[:num_sample]
+#
+#         self.aug = aug  # 图像增强
+#         self.norms1 = np.loadtxt(os.path.join(datastats, f's1usa_check_{normmethod}.txt'))
+#         self.norms2 = np.loadtxt(os.path.join(datastats, f's2usa_check_{normmethod}.txt'))
+#         self.norms2 = self.norms2[:, :self.nchans]
+#         if normmethod == 'minmax':
+#             self.norms1[1] -= self.norms1[0]  # max-min
+#             self.norms2[1] -= self.norms2[0]  # max-min
+#         self.datarange = datarange
+#
+#     def __getitem__(self, index):
+#         basename = self.s1_files[index]  # 假设所有文件名相同（s1, s2）
+#
+#         # 读取 s1 和 s2 图像
+#         s1_image_path = os.path.join(self.rootname, self.s1dir, basename)
+#         s2_image_path = os.path.join(self.rootname, self.s2dir, basename)
+#
+#         s1 = tif.imread(s1_image_path)
+#         s2 = tif.imread(s2_image_path)[:, :, :self.nchans]  # 选择所需通道
+#         img = np.concatenate((s2, s1), axis=-1)
+#
+#         # 调整图像大小
+#         h, w, bs2 = s2.shape
+#         img = cv2.resize(img, dsize=(4 * h, 4 * w), interpolation=cv2.INTER_NEAREST)
+#
+#         # 数据增强（如果需要）
+#         if self.aug:
+#             img = image_transform(image=img)["image"]
+#
+#         # 归一化
+#         img = torch.from_numpy(img.astype('float32')).float()  # 转换为 torch 张量
+#         img[:, :, :bs2] = (img[:, :, :bs2] - self.norms2[0]) / self.norms2[1]  # 归一化 Sentinel-2
+#         img[:, :, bs2:] = (img[:, :, bs2:] - self.norms1[0]) / self.norms1[1]  # 归一化 Sentinel-1
+#         img = img.permute(2, 0, 1).unsqueeze(0)  # 转换为 1 C H W
+#         img = torch.nn.functional.interpolate(img, scale_factor=0.25, mode="nearest")
+#         img = img.squeeze(0)
+#
+#         if isinstance(self.datarange, tuple):
+#             img[img < self.datarange[0]] = self.datarange[0]
+#             img[img > self.datarange[1]] = self.datarange[1]
+#
+#         return img, s1_image_path, s2_image_path
+#
+#     def __len__(self):
+#         return len(self.s1_files)
 
 # 2023.12.10: only consider s2 image
 class myImageFloder_S2_globe(data.Dataset):
